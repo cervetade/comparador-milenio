@@ -54,38 +54,46 @@ export async function onRequestPost({ request, env }) {
   const model = "gemini-flash-latest";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-  let resp;
-  try {
-    resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-goog-api-key": env.GEMINI_API_KEY
-      },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: userPart }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "ARRAY",
-            items: {
-              type: "OBJECT",
-              properties: {
-                producto: { type: "STRING" },
-                precio: { type: "NUMBER" }
-              },
-              required: ["producto", "precio"]
-            }
-          }
+  const requestBody = JSON.stringify({
+    contents: [{ role: "user", parts: userPart }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "ARRAY",
+        items: {
+          type: "OBJECT",
+          properties: {
+            producto: { type: "STRING" },
+            precio: { type: "NUMBER" }
+          },
+          required: ["producto", "precio"]
         }
-      })
-    });
-  } catch (e) {
-    return json({ error: "upstream_unreachable" }, 502);
-  }
+      }
+    }
+  });
 
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => "");
+  // gemini-flash-latest a veces devuelve 503 (UNAVAILABLE / "high demand") o 429 de forma
+  // transitoria. Como una foto es una sola llamada, un blip dejaba la extraccion en cero.
+  // Reintentamos hasta 3 veces con backoff corto ante esos codigos.
+  let resp, errText = "";
+  const RETRIABLE = new Set([429, 500, 502, 503, 504]);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": env.GEMINI_API_KEY
+        },
+        body: requestBody
+      });
+    } catch (e) {
+      if (attempt < 3) { await sleep(600 * attempt); continue; }
+      return json({ error: "upstream_unreachable" }, 502);
+    }
+    if (resp.ok) break;
+    errText = await resp.text().catch(() => "");
+    if (RETRIABLE.has(resp.status) && attempt < 3) { await sleep(600 * attempt); continue; }
     return json({ error: "upstream_error", detail: errText.slice(0, 300) }, 502);
   }
 
@@ -119,4 +127,8 @@ function json(obj, status) {
     status: status || 200,
     headers: { "content-type": "application/json; charset=utf-8" }
   });
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
 }
