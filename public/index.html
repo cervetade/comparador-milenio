@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparador Milenio</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛒</text></svg>">
+<script>
+  // se aplica ANTES de pintar la pagina, para que no se vea un flash del tema equivocado
+  try{
+    const saved = localStorage.getItem("milenio-theme");
+    if(saved === "light" || saved === "dark") document.documentElement.setAttribute("data-theme", saved);
+  }catch(e){}
+</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#eef1ec; --surface:#ffffff; --surface-2:#e3e9e0;
+    --ink:#182019; --ink-soft:#5b6659; --ink-faint:#8b968b; --line:#d5ddd0;
+    --accent:#c17d2e; --accent-ink:#5c3c14; --accent-soft:#f3e2c8;
+    --teal:#2c5f57; --teal-ink:#ffffff; --danger:#a34632;
+    --shadow: 0 1px 2px rgba(24,32,25,.06), 0 6px 20px -8px rgba(24,32,25,.18);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12160f; --surface:#1b2018; --surface-2:#232920;
+      --ink:#edf1e9; --ink-soft:#a9b3a3; --ink-faint:#707b6c; --line:#2c332a;
+      --accent:#e2a559; --accent-ink:#2a1a06; --accent-soft:#3a2d16;
+      --teal:#6cb6ab; --teal-ink:#0c1a17; --danger:#e08a72;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -10px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12160f; --surface:#1b2018; --surface-2:#232920;
+    --ink:#edf1e9; --ink-soft:#a9b3a3; --ink-faint:#707b6c; --line:#2c332a;
+    --accent:#e2a559; --accent-ink:#2a1a06; --accent-soft:#3a2d16;
+    --teal:#6cb6ab; --teal-ink:#0c1a17; --danger:#e08a72;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -10px rgba(0,0,0,.5);
+    color-scheme: dark;
+  }
+  :root[data-theme="light"]{ color-scheme: light; }
+  *{box-sizing:border-box;}
+  html,body{margin:0; background:var(--bg); color:var(--ink);}
+  body{font-family:"Inter", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px; margin:0 auto; padding:20px 16px 64px; display:flex; flex-direction:column; gap:24px;}
+  h1,h2,h3{font-family:"Inter", ui-sans-serif, system-ui, sans-serif; font-weight:700; letter-spacing:-.01em; text-wrap:balance; margin:0;}
+
+  header.top{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; border-bottom:1px solid var(--line); padding-bottom:16px;}
+  header.top .title{display:flex; flex-direction:column; gap:6px;}
+  header.top h1{font-size:26px;}
+  header.top p{margin:0; color:var(--ink-soft); font-size:14px; max-width:52ch;}
+  .eyebrow{font-family:"Inter", sans-serif; font-weight:600; font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--teal);}
+  .theme-toggle{font:inherit; font-size:13px; font-weight:500; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink); cursor:pointer; display:flex; align-items:center; gap:6px;}
+
+  .banner{display:flex; gap:10px; padding:12px 14px; border-radius:10px; border:1px solid var(--line); background:var(--surface); font-size:13.5px; color:var(--ink-soft);}
+  .banner.warn{border-color:var(--danger); color:var(--danger);}
+
+  .shelf-head{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px;}
+  .shelf-head p{margin:2px 0 0; color:var(--ink-soft); font-size:13px;}
+  .cards{display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:12px;}
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:8px; box-shadow:var(--shadow); min-height:140px;}
+  .card .name{font-family:"Inter", sans-serif; font-weight:600; font-size:16px; line-height:1.2;}
+  .card .meta{font-family:"Inter", sans-serif; font-size:11.5px; color:var(--ink-soft); display:flex; flex-direction:column; gap:2px;}
+  .card .row{margin-top:auto; display:flex; gap:6px;}
+
+  .btn{font:inherit; font-size:13px; font-weight:500; padding:9px 12px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--ink); cursor:pointer;}
+  .btn:disabled{opacity:.5;}
+  .btn.primary{background:var(--teal); color:var(--teal-ink); border-color:var(--teal);}
+  .btn.ghost{background:transparent;}
+  .btn.small{padding:6px 10px; font-size:12px;}
+  .btn.danger{color:var(--danger); border-color:var(--danger); background:transparent;}
+
+  .card.add{align-items:center; justify-content:center; text-align:center; border-style:dashed; cursor:pointer; color:var(--ink-soft); gap:4px;}
+  .card.add .plus{font-family:"Inter", sans-serif; font-weight:600; font-size:24px; color:var(--teal); line-height:1;}
+
+  .progressbar{height:5px; border-radius:4px; background:var(--surface-2); overflow:hidden;}
+  .progressbar > i{display:block; height:100%; background:var(--accent); width:0%; transition:width .25s ease;}
+
+  input[type=text], input[type=file]{font:inherit; font-size:16px; padding:10px 10px; border-radius:7px; border:1px solid var(--line); background:var(--surface); color:var(--ink); width:100%;}
+  input[type=file]{padding:8px; font-size:13px;}
+
+  .inline-form{display:flex; flex-direction:column; gap:10px;}
+  dialog{border:none; border-radius:14px; padding:0; background:var(--surface); color:var(--ink); box-shadow:var(--shadow); width:min(420px, 92vw);}
+  dialog::backdrop{background:rgba(10,14,10,.45);}
+  dialog .dbody{padding:18px; display:flex; flex-direction:column; gap:14px;}
+  dialog .dfoot{display:flex; justify-content:flex-end; gap:8px;}
+
+  section.compare{background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); overflow:hidden;}
+  .compare-head{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding:14px 16px; border-bottom:1px solid var(--line);}
+  .compare-head .stats{font-family:"Inter", sans-serif; font-size:12px; color:var(--ink-soft); margin-top:3px;}
+  .compare-controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .compare-controls input[type=text]{width:180px;}
+
+  .table-scroll{overflow-x:auto; max-height:70vh; overflow-y:auto;}
+  table.grid{border-collapse:collapse; width:100%; font-size:13.5px;}
+  table.grid thead th{position:sticky; top:0; background:var(--surface-2); text-align:left; font-family:"Inter", sans-serif; font-weight:600; font-size:11.5px; letter-spacing:.04em; text-transform:uppercase; padding:10px 12px; border-bottom:1px solid var(--line); white-space:nowrap; z-index:1;}
+  table.grid thead th.prod{position:sticky; left:0; z-index:3; box-shadow:1px 0 0 var(--line);}
+  table.grid tbody td{padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top;}
+  table.grid tbody tr:nth-child(even){background:color-mix(in srgb, var(--surface-2) 40%, transparent);}
+  table.grid td.prod{font-weight:500; max-width:280px; position:sticky; left:0; background:inherit; box-shadow:1px 0 0 var(--line);}
+  table.grid tbody tr:nth-child(odd) td.prod{background:var(--surface);}
+  table.grid tbody tr:nth-child(even) td.prod{background:var(--surface-2);}
+  table.grid td.price{font-family:"Inter", sans-serif; font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap;}
+  table.grid td.price .dash{color:var(--ink-faint);}
+  table.grid td.price.best{background:var(--accent-soft); color:var(--accent-ink); font-weight:600; border-radius:6px;}
+  table.grid td.price .tag{display:block; font-size:10px; font-weight:500; letter-spacing:.02em; text-transform:uppercase; color:var(--accent-ink); opacity:.75;}
+  tr.single td.prod::after{content:"sin comparación"; display:block; font-family:"Inter", sans-serif; font-size:10.5px; color:var(--ink-faint); font-weight:400; margin-top:2px;}
+  .section-row td{background:var(--bg) !important; color:var(--ink-soft); font-family:"Inter", sans-serif; font-weight:600; font-size:11px; letter-spacing:.06em; text-transform:uppercase; padding:10px 12px !important; position:static !important; box-shadow:none !important;}
+  .empty-note{padding:32px 16px; text-align:center; color:var(--ink-soft); font-size:14px;}
+  footer{text-align:center; color:var(--ink-faint); font-size:11.5px; font-family:"Inter", sans-serif;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <span class="eyebrow">Milenio Market</span>
+      <h1>Comparador de precios</h1>
+      <p>Subí la lista de precios (PDF) de cada distribuidor y mirá al instante quién te da el precio más bajo por producto.</p>
+    </div>
+    <button class="theme-toggle" id="themeToggle" type="button" title="Cambiar modo claro/oscuro"></button>
+  </header>
+
+  <div id="banners"></div>
+
+  <section class="shelf">
+    <div class="shelf-head">
+      <div><h2 style="font-size:18px">Distribuidores</h2><p>Uno o varios PDFs/fotos por distribuidor. Actualizar uno no toca a los demás.</p></div>
+    </div>
+    <div class="cards" id="distCards"></div>
+  </section>
+
+  <section class="compare">
+    <div class="compare-head">
+      <div><h2 style="font-size:18px">Tabla comparativa</h2><div class="stats" id="compareStats"></div></div>
+      <div class="compare-controls">
+        <input type="text" id="search" placeholder="Buscar producto…">
+        <button class="btn primary" id="downloadBtn">Descargar Excel</button>
+      </div>
+    </div>
+    <div class="table-scroll" id="tableWrap"></div>
+  </section>
+
+  <footer>Milenio Market · comparador de listas de proveedores</footer>
+</div>
+
+<dialog id="uploadDialog">
+  <div class="dbody">
+    <h3 id="dialogTitle">Agregar distribuidor</h3>
+    <div class="inline-form">
+      <label>Nombre del distribuidor
+        <input type="text" id="distName" placeholder="Ej: Stock Distribuciones">
+      </label>
+      <label>Lista de precios (uno o varios PDFs y/o fotos)
+        <input type="file" id="distFile" accept="application/pdf,image/*" multiple>
+      </label>
+      <div id="dialogProgress" style="display:none">
+        <div class="progressbar"><i id="dialogProgressBar"></i></div>
+        <div style="margin-top:6px; font-size:12px; color:var(--ink-soft)" id="dialogProgressText"></div>
+      </div>
+    </div>
+    <div class="dfoot">
+      <button class="btn ghost" id="dialogCancel" type="button">Cancelar</button>
+      <button class="btn primary" id="dialogSubmit" type="button">Procesar PDF</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  const CHUNK_CHARS = 8000;
+  const EXTRACT_CONCURRENCY = 2;
+  const MATCH_THRESHOLD = 0.42;
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+
+  const state = { distributors: [], rows: [], searchTerm: "" };
+
+  function stripAccents(s){ return s.normalize("NFD").replace(/[̀-ͯ]/g,""); }
+  const STOPWORDS = new Set(["de","la","el","los","las","y","con","sin","un","una","x","del","al","en"]);
+  function normalizeDesc(s){
+    // "1,5 Kg" (coma decimal argentina) -> "1.5 kg" ANTES de tirar la coma, si no
+    // "1,5" se parte en dos tokens ("1" "5") y rompe la firma de tamaño (ver sizeSignature).
+    const withDots = String(s||"").replace(/(\d),(\d)/g, "$1.$2");
+    return stripAccents(withDots.toLowerCase()).replace(/[^a-z0-9.\s]/g," ").replace(/\s+/g," ").trim();
+  }
+  function tokenize(norm){ return norm.split(" ").filter(t=>t.length>1 && !STOPWORDS.has(t)); }
+  // distintos distribuidores abrevian la misma unidad distinto ("l" / "lt" / "lts", "gr" / "grs").
+  // sin este mapeo, "1,5 L" y "1,5 Lts" arman firmas de tamaño distintas y el match se pierde.
+  const UNIT_CANON = {ml:"ml", l:"l", lt:"l", lts:"l", kg:"kg", kgs:"kg", gr:"g", grs:"g", g:"g", cc:"cc", un:"u", u:"u", mg:"mg"};
+  const UNIT_ALT = "ml|lts?|kgs?|grs?|l|kg|gr|cc|un|u|mg";
+  function sizeSignature(norm){
+    // el "x N" (paquete/multiplo) NO debe comerse un "x 700 Grs." o "x 1,5 L": si despues del
+    // numero viene una unidad reconocida (con o sin espacio), dejamos que la gane la alternativa
+    // de abajo (numero+unidad) - si no, "x 700 grs." y "700grs" (mismo producto, distinto formato
+    // de escritura) arman firmas de tamaño distintas y el match entre distribuidores se pierde.
+    const re = new RegExp(
+      "\\bx\\s?(\\d{1,4})(?!\\.\\d)(?!\\s?(?:" + UNIT_ALT + ")\\b)\\b" +
+      "|\\b(\\d{1,5}(?:\\.\\d+)?)\\s?(" + UNIT_ALT + ")\\b",
+      "g"
+    );
+    const parts = [];
+    let mm;
+    while((mm = re.exec(norm))){
+      if(mm[1] !== undefined){
+        parts.push("x" + mm[1]);
+      }else{
+        const num = String(parseFloat(mm[2]));
+        parts.push(num + (UNIT_CANON[mm[3]] || mm[3]));
+      }
+    }
+    if(!parts.length) return null;
+    return parts.sort().join("|");
+  }
+  const currency = new Intl.NumberFormat("es-AR", {style:"currency", currency:"ARS", maximumFractionDigits:0});
+  function fmtPrice(n){ return currency.format(n); }
+  function relTime(ts){
+    if(!ts) return "";
+    const diff = Date.now() - new Date(ts).getTime();
+    const min = Math.round(diff/60000);
+    if(min < 1) return "recién";
+    if(min < 60) return min + " min";
+    const hr = Math.round(min/60);
+    if(hr < 24) return hr + " h";
+    return Math.round(hr/24) + " d";
+  }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function addBanner(html, cls){
+    const el = document.createElement("div");
+    el.className = "banner" + (cls ? " " + cls : "");
+    el.innerHTML = html;
+    document.getElementById("banners").appendChild(el);
+  }
+
+  async function pdfToLines(file){
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    const lines = [];
+    for(let p=1; p<=pdf.numPages; p++){
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      const byY = new Map();
+      for(const item of content.items){
+        if(!item.str || !item.str.trim()) continue;
+        const y = Math.round(item.transform[5]/2)*2;
+        if(!byY.has(y)) byY.set(y, []);
+        byY.get(y).push({x:item.transform[4], s:item.str});
+      }
+      const ys = Array.from(byY.keys()).sort((a,b)=>b-a);
+      for(const y of ys){
+        const row = byY.get(y).sort((a,b)=>a.x-b.x).map(o=>o.s.trim()).filter(Boolean);
+        if(row.length) lines.push(row.join(" "));
+      }
+      lines.push("");
+    }
+    return lines;
+  }
+
+  // --- atajo sin IA: para PDFs con columnas regulares (texto ... $ monto ... $ monto final ... proveedor) ---
+  // Entiende formato argentino (4.400,00) y angloamericano (4,400.00) por igual, con o sin decimales.
+  const MONEY_RE = /\$?\s?\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?(?!\d)|\$?\s?\d{1,3}[.,]\d{2}(?!\d)/g;
+  // Si el texto menciona precio "sugerido"/reventa, no confiamos en "el último monto de la fila":
+  // puede ser el margen sugerido, no el costo. Esos bloques se mandan siempre a la IA.
+  const RETAIL_HINT_RE = /sugerid|p\.?v\.?p\.?|venta al p[uú]blico|margen/i;
+  function parseAmount(raw){
+    const s = raw.replace(/\$/g,"").trim();
+    const parts = s.split(/[.,]/);
+    if(parts.length === 1) return parseFloat(parts[0]);
+    const lastPart = parts[parts.length-1];
+    if(lastPart.length === 2){
+      return parseFloat(parts.slice(0,-1).join("") + "." + lastPart);
+    }
+    return parseFloat(parts.join(""));
+  }
+  function fastParseLine(line){
+    const matches = [...line.matchAll(MONEY_RE)];
+    if(matches.length === 0) return null;
+    const first = matches[0];
+    const last = matches[matches.length-1];
+    let desc = line.slice(0, first.index).trim().replace(/^\d{1,6}\s*/, "");
+    if(desc.length < 4 || !/[a-zA-ZÁÉÍÓÚÑáéíóúñ]/.test(desc)) return null;
+    const price = parseAmount(last[0]);
+    if(!Number.isFinite(price) || price <= 0) return null;
+    return {d: desc, p: price};
+  }
+  function fastParseChunk(chunkText){
+    if(RETAIL_HINT_RE.test(chunkText)) return null; // ambiguo cuál columna es el costo real -> IA
+    const lines = chunkText.split("\n").map(l=>l.trim()).filter(Boolean);
+    if(lines.length === 0) return null;
+    const results = [];
+    for(const line of lines){
+      const r = fastParseLine(line);
+      if(r) results.push(r);
+    }
+    // solo confiamos en el atajo si entendió la gran mayoría de las líneas del bloque
+    if(results.length > 0 && results.length / lines.length >= 0.6) return results;
+    return null;
+  }
+
+  function chunkLines(lines, maxChars){
+    const chunks = []; let buf=[]; let len=0;
+    for(const line of lines){
+      if(len + line.length + 1 > maxChars && buf.length){ chunks.push(buf.join("\n")); buf=[]; len=0; }
+      buf.push(line); len += line.length + 1;
+    }
+    if(buf.length) chunks.push(buf.join("\n"));
+    return chunks.filter(c => c.trim().length > 0);
+  }
+
+  function fileToBase64(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]); // sacar el prefijo data:...;base64,
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function extractChunk(payload, attempt){
+    attempt = attempt || 1;
+    try{
+      const resp = await fetch("/api/extract", {
+        method:"POST", headers:{"content-type":"application/json"},
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      if(!resp.ok || data.error){
+        if(attempt < 2){ await new Promise(r=>setTimeout(r,1500)); return extractChunk(payload, attempt+1); }
+        return null;
+      }
+      return Array.isArray(data.items) ? data.items : [];
+    }catch(e){
+      if(attempt < 2){ await new Promise(r=>setTimeout(r,1500)); return extractChunk(payload, attempt+1); }
+      return null;
+    }
+  }
+
+  // Arma la lista de "tareas" a procesar (bloques de texto o imágenes enteras) para uno o varios archivos.
+  async function buildTasks(files){
+    const tasks = [];
+    for(const file of files){
+      if(file.type === "application/pdf" || /\.pdf$/i.test(file.name)){
+        const lines = await pdfToLines(file);
+        for(const chunk of chunkLines(lines, CHUNK_CHARS)){
+          tasks.push({kind:"text", chunk});
+        }
+      }else if(file.type.startsWith("image/")){
+        const imageBase64 = await fileToBase64(file);
+        tasks.push({kind:"image", imageBase64, mimeType:file.type});
+      } // otros tipos de archivo se ignoran
+    }
+    return tasks;
+  }
+
+  async function extractDistributorFiles(files, onProgress){
+    const tasks = await buildTasks(files);
+    const items = []; let failed=0, done=0, idx=0, fastCount=0;
+    async function worker(){
+      while(idx < tasks.length){
+        const my = idx++;
+        const task = tasks[my];
+        let handled = false;
+        if(task.kind === "text"){
+          const fast = fastParseChunk(task.chunk);
+          if(fast){ items.push(...fast); fastCount++; handled = true; }
+        }
+        if(!handled){
+          const payload = task.kind === "text"
+            ? {text: task.chunk}
+            : {imageBase64: task.imageBase64, mimeType: task.mimeType};
+          const res = await extractChunk(payload);
+          if(res===null) failed++; else items.push(...res);
+        }
+        done++; onProgress && onProgress(done, tasks.length, fastCount);
+      }
+    }
+    const workers = Array.from({length: Math.min(EXTRACT_CONCURRENCY, Math.max(tasks.length,1))}, worker);
+    await Promise.all(workers);
+    return {items, failed, totalChunks: tasks.length, fastCount};
+  }
+
+  function computeComparison(distList){
+    const flat = [];
+    for(const d of distList){
+      (d.items||[]).forEach((it,i)=>{
+        const norm = normalizeDesc(it.d);
+        flat.push({ id:d.slug+"#"+i, slug:d.slug, name:d.name, desc:it.d, price:it.p, tokens:tokenize(norm), size:sizeSignature(norm) });
+      });
+    }
+    if(flat.length===0) return [];
+    const df = new Map();
+    for(const it of flat){ const seen=new Set(it.tokens); for(const t of seen) df.set(t,(df.get(t)||0)+1); }
+    const N = flat.length;
+    function idf(t){ return Math.log((N+1)/((df.get(t)||0)+1))+1; }
+    for(const it of flat){ it.vecNorm = Math.sqrt(it.tokens.reduce((s,t)=>s+idf(t)*idf(t),0)) || 1; }
+    const index = new Map();
+    for(const it of flat){ for(const t of new Set(it.tokens)){ if((df.get(t)||0) > N*0.6) continue; if(!index.has(t)) index.set(t,[]); index.get(t).push(it); } }
+    const parent = new Map(flat.map(it=>[it.id,it.id]));
+    function find(x){ while(parent.get(x)!==x){ parent.set(x, parent.get(parent.get(x))); x=parent.get(x);} return x; }
+    const clusterMembers = new Map(flat.map(it=>[it.id, new Set([it.slug])]));
+    function tryUnion(a,b){
+      const ra=find(a.id), rb=find(b.id); if(ra===rb) return;
+      const mA=clusterMembers.get(ra), mB=clusterMembers.get(rb);
+      for(const s of mB) if(mA.has(s)) return;
+      parent.set(rb,ra); for(const s of mB) mA.add(s); clusterMembers.delete(rb);
+    }
+    const seenPairs = new Set(); const edges=[];
+    for(const [,group] of index){
+      if(group.length<2 || group.length>400) continue;
+      for(let i=0;i<group.length;i++) for(let j=i+1;j<group.length;j++){
+        const a=group[i], b=group[j];
+        if(a.slug===b.slug) continue;
+        const key = a.id<b.id ? a.id+"|"+b.id : b.id+"|"+a.id;
+        if(seenPairs.has(key)) continue; seenPairs.add(key);
+        if(a.size && b.size && a.size!==b.size) continue;
+        let dot=0; const setB=new Set(b.tokens);
+        for(const t of new Set(a.tokens)) if(setB.has(t)) dot += idf(t)*idf(t);
+        const score = dot/(a.vecNorm*b.vecNorm);
+        const bonus = (a.size && b.size && a.size===b.size) ? 0.15 : 0;
+        const total = score+bonus;
+        if(total >= MATCH_THRESHOLD) edges.push({a,b,total});
+      }
+    }
+    edges.sort((x,y)=>y.total-x.total);
+    for(const e of edges) tryUnion(e.a,e.b);
+    const clusters = new Map();
+    for(const it of flat){ const r=find(it.id); if(!clusters.has(r)) clusters.set(r,[]); clusters.get(r).push(it); }
+    const rows=[];
+    for(const members of clusters.values()){
+      const rep = members.reduce((best,it)=> it.desc.length>best.desc.length ? it : best, members[0]);
+      const bySlug={}; let min=Infinity, minSlug=null;
+      for(const m of members){ bySlug[m.slug]=m.price; if(m.price<min){min=m.price; minSlug=m.slug;} }
+      rows.push({ product: rep.desc, prices: bySlug, bestSlug: minSlug, comparable: members.length>1 });
+    }
+    rows.sort((a,b)=> a.product.localeCompare(b.product,"es"));
+    rows.sort((a,b)=> (b.comparable - a.comparable));
+    return rows;
+  }
+
+  function renderCards(){
+    const wrap = document.getElementById("distCards");
+    wrap.innerHTML = "";
+    for(const d of state.distributors){
+      const card = document.createElement("div");
+      card.className = "card";
+      const failNote = d.failedChunks ? `<div style="color:var(--danger)">${d.failedChunks} bloque(s) no se pudieron leer</div>` : "";
+      card.innerHTML = `
+        <div class="name">${escapeHtml(d.name)}</div>
+        <div class="meta"><span>${d.item_count ?? (d.items||[]).length} articulos</span><span>actualizado hace ${relTime(d.updated_at)}</span>${failNote}</div>
+        <div class="row">
+          <button class="btn small replace" type="button">Reemplazar</button>
+          <button class="btn small danger remove" type="button">Eliminar</button>
+        </div>`;
+      card.querySelector(".replace").onclick = () => openDialog(d);
+      card.querySelector(".remove").onclick = () => removeDistributor(d);
+      wrap.appendChild(card);
+    }
+    const add = document.createElement("div");
+    add.className = "card add";
+    add.innerHTML = `<div class="plus">+</div><div>Agregar distribuidor</div>`;
+    add.onclick = () => openDialog(null);
+    wrap.appendChild(add);
+  }
+
+  function renderTable(){
+    const distList = state.distributors;
+    const term = normalizeDesc(state.searchTerm);
+    const rows = term ? state.rows.filter(r => normalizeDesc(r.product).includes(term)) : state.rows;
+
+    const statsEl = document.getElementById("compareStats");
+    const comparable = state.rows.filter(r=>r.comparable).length;
+    statsEl.textContent = state.rows.length ? `${state.rows.length} productos · ${comparable} comparables entre 2+ distribuidores` : "";
+
+    const tableWrap = document.getElementById("tableWrap");
+    if(!distList.length){ tableWrap.innerHTML = `<div class="empty-note">Agregá al menos un distribuidor para empezar.</div>`; return; }
+    if(!rows.length){ tableWrap.innerHTML = `<div class="empty-note">${term ? "Ningún producto coincide con la búsqueda." : "Todavía no hay productos extraídos."}</div>`; return; }
+
+    let html = `<table class="grid"><thead><tr><th class="prod">Producto</th>`;
+    for(const d of distList) html += `<th>${escapeHtml(d.name)}</th>`;
+    html += `</tr></thead><tbody>`;
+    let lastComparable = null;
+    for(const r of rows){
+      if(r.comparable !== lastComparable){
+        html += `<tr class="section-row"><td colspan="${distList.length+1}">${r.comparable ? "Comparables entre distribuidores" : "Sin comparación disponible"}</td></tr>`;
+        lastComparable = r.comparable;
+      }
+      html += `<tr class="${r.comparable ? "" : "single"}"><td class="prod">${escapeHtml(r.product)}</td>`;
+      for(const d of distList){
+        const price = r.prices[d.slug];
+        if(price===undefined) html += `<td class="price"><span class="dash">—</span></td>`;
+        else{
+          const isBest = r.comparable && d.slug===r.bestSlug;
+          html += `<td class="price${isBest?" best":""}">${isBest?'<span class="tag">mas barato</span>':""}${fmtPrice(price)}</td>`;
+        }
+      }
+      html += `</tr>`;
+    }
+    html += `</tbody></table>`;
+    tableWrap.innerHTML = html;
+  }
+
+  function recomputeAndRender(){
+    state.rows = computeComparison(state.distributors);
+    renderTable();
+  }
+
+  const dialog = document.getElementById("uploadDialog");
+
+  function openDialog(dist){
+    document.getElementById("dialogTitle").textContent = dist ? "Reemplazar " + dist.name : "Agregar distribuidor";
+    const nameInput = document.getElementById("distName");
+    nameInput.value = dist ? dist.name : "";
+    nameInput.disabled = !!dist;
+    document.getElementById("distFile").value = "";
+    document.getElementById("dialogProgress").style.display = "none";
+    document.getElementById("dialogSubmit").disabled = false;
+    dialog.showModal();
+  }
+  document.getElementById("dialogCancel").onclick = () => dialog.close();
+
+  document.getElementById("dialogSubmit").onclick = async () => {
+    const name = document.getElementById("distName").value.trim();
+    const files = Array.from(document.getElementById("distFile").files || []);
+    if(!name || files.length===0){ alert("Falta el nombre del distribuidor o los archivos."); return; }
+    const submitBtn = document.getElementById("dialogSubmit");
+    submitBtn.disabled = true;
+    const progWrap = document.getElementById("dialogProgress");
+    const progBar = document.getElementById("dialogProgressBar");
+    const progText = document.getElementById("dialogProgressText");
+    progWrap.style.display = "block";
+    progText.textContent = "Leyendo archivos…"; progBar.style.width = "5%";
+    try{
+      const {items, failed, totalChunks, fastCount} = await extractDistributorFiles(files, (done,total,fast)=>{
+        progText.textContent = `Procesando… ${done}/${total} bloques (${fast} sin usar IA)`;
+        progBar.style.width = Math.round(5 + (done/total)*90) + "%";
+      });
+      if(items.length===0){ alert("No se pudo extraer ningún producto de estos archivos."); submitBtn.disabled=false; return; }
+      progText.textContent = "Guardando…"; progBar.style.width = "97%";
+      const resp = await fetch("/api/distributors", {
+        method:"POST", headers:{"content-type":"application/json"},
+        body: JSON.stringify({name, items})
+      });
+      if(!resp.ok){ throw new Error("no se pudo guardar"); }
+      progBar.style.width = "100%";
+      if(fastCount>0) addBanner(`"${escapeHtml(name)}": ${fastCount} de ${totalChunks} bloques se leyeron sin usar IA (formato de tabla reconocido directamente).`);
+      if(failed>0) addBanner(`"${escapeHtml(name)}": ${failed} de ${totalChunks} bloques/imágenes no se pudieron leer ni con el atajo ni con IA.`, "warn");
+      dialog.close();
+      await loadDistributors();
+    }catch(e){
+      alert("Ocurrió un error procesando los archivos: " + (e && e.message ? e.message : e));
+      submitBtn.disabled = false;
+    }
+  };
+
+  async function removeDistributor(d){
+    if(!confirm(`¿Eliminar "${d.name}" de la comparación?`)) return;
+    await fetch("/api/distributors?slug=" + encodeURIComponent(d.slug), {method:"DELETE"});
+    await loadDistributors();
+  }
+
+  async function loadDistributors(){
+    try{
+      const resp = await fetch("/api/distributors");
+      const data = await resp.json();
+      state.distributors = data.distributors || [];
+    }catch(e){
+      addBanner("No se pudo conectar con el servidor. Probá recargar la página.", "warn");
+      state.distributors = [];
+    }
+    renderCards();
+    recomputeAndRender();
+  }
+
+  document.getElementById("downloadBtn").onclick = () => {
+    const distList = state.distributors;
+    if(!distList.length || !state.rows.length){ alert("Todavía no hay datos para exportar."); return; }
+    const header = ["Producto", ...distList.map(d=>d.name), "Mas barato"];
+    const aoa = [header];
+    for(const r of state.rows){
+      const row = [r.product];
+      for(const d of distList) row.push(r.prices[d.slug] !== undefined ? r.prices[d.slug] : "");
+      row.push(r.comparable ? (distList.find(d=>d.slug===r.bestSlug)||{}).name || "" : "");
+      aoa.push(row);
+    }
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Comparación");
+    XLSX.writeFile(wb, "comparador-precios.xlsx");
+  };
+
+  document.getElementById("search").addEventListener("input", (e)=>{
+    state.searchTerm = e.target.value;
+    renderTable();
+  });
+
+  // --- modo claro/oscuro ---
+  function currentTheme(){
+    const explicit = document.documentElement.getAttribute("data-theme");
+    if(explicit === "light" || explicit === "dark") return explicit;
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  function renderThemeToggle(){
+    const isDark = currentTheme() === "dark";
+    const btn = document.getElementById("themeToggle");
+    btn.textContent = isDark ? "☀️ Modo claro" : "🌙 Modo oscuro";
+  }
+  document.getElementById("themeToggle").onclick = () => {
+    const next = currentTheme() === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try{ localStorage.setItem("milenio-theme", next); }catch(e){}
+    renderThemeToggle();
+  };
+  renderThemeToggle();
+
+  loadDistributors();
+})();
+</script>
+</body>
+</html>
