@@ -106,6 +106,7 @@
   table.grid td.price .dash{color:var(--ink-faint);}
   table.grid td.price.best{background:var(--accent-soft); color:var(--accent-ink); font-weight:600; border-radius:6px;}
   table.grid td.price .tag{display:block; font-size:10px; font-weight:500; letter-spacing:.02em; text-transform:uppercase; color:var(--accent-ink); opacity:.75;}
+  table.grid td.price .tag.save{color:var(--teal); opacity:1; font-weight:600; text-transform:none; letter-spacing:0;}
   tr.single td.prod::after{content:"sin comparación"; display:block; font-family:"Inter", sans-serif; font-size:10.5px; color:var(--ink-faint); font-weight:400; margin-top:2px;}
   .section-row td{background:var(--bg) !important; color:var(--ink-soft); font-family:"Inter", sans-serif; font-weight:600; font-size:11px; letter-spacing:.06em; text-transform:uppercase; padding:10px 12px !important; position:static !important; box-shadow:none !important;}
   .empty-note{padding:32px 16px; text-align:center; color:var(--ink-soft); font-size:14px;}
@@ -180,6 +181,36 @@
   pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
 
   const state = { distributors: [], rows: [], searchTerm: "" };
+
+  // --- clave de acceso compartida ---
+  // La clave se guarda en localStorage y se manda por header en cada request a /api/*.
+  // Si el server responde 401 (clave incorrecta o requerida), la pedimos de nuevo.
+  const KEY_STORE = "milenio-key";
+  function getStoredKey(){ try{ return localStorage.getItem(KEY_STORE) || ""; }catch(e){ return ""; } }
+  function setStoredKey(k){ try{ if(k) localStorage.setItem(KEY_STORE, k); else localStorage.removeItem(KEY_STORE); }catch(e){} }
+  function promptKey(msg){
+    const k = window.prompt(msg || "Ingresá la clave de acceso:");
+    if(k){ setStoredKey(k.trim()); return getStoredKey(); }
+    return "";
+  }
+  async function apiFetch(url, opts){
+    opts = opts || {};
+    const doFetch = (k) => fetch(url, Object.assign({}, opts, {
+      headers: Object.assign({}, opts.headers || {}, k ? { "x-app-key": k } : {})
+    }));
+    let resp = await doFetch(getStoredKey());
+    if(resp.status === 401){
+      // otro request en paralelo pudo haber pedido la clave ya: reintentá con lo guardado
+      const stored = getStoredKey();
+      if(stored){ resp = await doFetch(stored); }
+      if(resp.status === 401){
+        setStoredKey("");
+        const k = promptKey("Clave de acceso incorrecta o requerida. Ingresala de nuevo:");
+        if(k){ resp = await doFetch(k); }
+      }
+    }
+    return resp;
+  }
 
   function stripAccents(s){ return s.normalize("NFD").replace(/[̀-ͯ]/g,""); }
   const STOPWORDS = new Set(["de","la","el","los","las","y","con","sin","un","una","x","del","al","en"]);
@@ -358,7 +389,7 @@
   async function extractChunk(payload, attempt){
     attempt = attempt || 1;
     try{
-      const resp = await fetch("/api/extract", {
+      const resp = await apiFetch("/api/extract", {
         method:"POST", headers:{"content-type":"application/json"},
         body: JSON.stringify(payload)
       });
@@ -533,14 +564,19 @@
     return html;
   }
 
+  // filas visibles según la búsqueda actual (compartido por la tabla y la exportación a Excel).
+  function filteredRows(){
+    const terms = normalizeDesc(state.searchTerm).split(" ").filter(Boolean);
+    if(!terms.length) return state.rows;
+    return state.rows.filter(r => { const hay = r.search || normalizeDesc(r.product); return terms.every(t => hay.includes(t)); });
+  }
+
   function renderTable(){
     const distList = state.distributors;
-    // términos normalizados (sin acentos/minúsculas) para filtrar, y crudos para resaltar.
+    // términos normalizados (sin acentos/minúsculas) para stats, y crudos para resaltar.
     const terms = normalizeDesc(state.searchTerm).split(" ").filter(Boolean);
     const rawTerms = state.searchTerm.trim().split(/\s+/).filter(Boolean);
-    const rows = terms.length
-      ? state.rows.filter(r => { const hay = r.search || normalizeDesc(r.product); return terms.every(t => hay.includes(t)); })
-      : state.rows;
+    const rows = filteredRows();
 
     const statsEl = document.getElementById("compareStats");
     const comparable = state.rows.filter(r=>r.comparable).length;
@@ -565,13 +601,20 @@
         html += `<tr class="section-row"><td colspan="${distList.length+1}">${r.comparable ? "Comparables entre distribuidores" : "Sin comparación disponible"}</td></tr>`;
         lastComparable = r.comparable;
       }
+      // ahorro del más barato vs el segundo más barato (solo si el producto es comparable).
+      let saving = null;
+      if(r.comparable){
+        const ps = Object.values(r.prices).filter(v => typeof v === "number").sort((a,b)=>a-b);
+        if(ps.length >= 2 && ps[1] > 0){ const pct = Math.round((1 - ps[0]/ps[1]) * 100); if(pct > 0) saving = pct; }
+      }
       html += `<tr class="${r.comparable ? "" : "single"}"><td class="prod">${highlightTerms(r.product, rawTerms)}</td>`;
       for(const d of distList){
         const price = r.prices[d.slug];
         if(price===undefined) html += `<td class="price"><span class="dash">—</span></td>`;
         else{
           const isBest = r.comparable && d.slug===r.bestSlug;
-          html += `<td class="price${isBest?" best":""}">${isBest?'<span class="tag">mas barato</span>':""}${fmtPrice(price)}</td>`;
+          const savingTag = (isBest && saving) ? `<span class="tag save">ahorrás ${saving}%</span>` : "";
+          html += `<td class="price${isBest?" best":""}">${isBest?'<span class="tag">mas barato</span>':""}${fmtPrice(price)}${savingTag}</td>`;
         }
       }
       html += `</tr>`;
@@ -621,7 +664,7 @@
         submitBtn.disabled=false; return;
       }
       progText.textContent = "Guardando…"; progBar.style.width = "97%";
-      const resp = await fetch("/api/distributors", {
+      const resp = await apiFetch("/api/distributors", {
         method:"POST", headers:{"content-type":"application/json"},
         body: JSON.stringify({name, items})
       });
@@ -639,15 +682,15 @@
 
   async function removeDistributor(d){
     if(!confirm(`¿Eliminar "${d.name}" de la comparación?`)) return;
-    await fetch("/api/distributors?slug=" + encodeURIComponent(d.slug), {method:"DELETE"});
+    await apiFetch("/api/distributors?slug=" + encodeURIComponent(d.slug), {method:"DELETE"});
     await loadDistributors();
   }
 
   async function loadDistributors(){
     try{
-      const resp = await fetch("/api/distributors");
-      const data = await resp.json();
-      state.distributors = data.distributors || [];
+      const resp = await apiFetch("/api/distributors");
+      if(resp.status === 401){ addBanner("Se necesita la clave de acceso para ver los datos. Recargá la página e ingresala.", "warn"); state.distributors = []; }
+      else{ const data = await resp.json(); state.distributors = data.distributors || []; }
     }catch(e){
       addBanner("No se pudo conectar con el servidor. Probá recargar la página.", "warn");
       state.distributors = [];
@@ -658,10 +701,11 @@
 
   document.getElementById("downloadBtn").onclick = () => {
     const distList = state.distributors;
-    if(!distList.length || !state.rows.length){ alert("Todavía no hay datos para exportar."); return; }
+    const rows = filteredRows(); // exporta lo que está viendo (respeta la búsqueda activa)
+    if(!distList.length || !rows.length){ alert("Todavía no hay datos para exportar."); return; }
     const header = ["Producto", ...distList.map(d=>d.name), "Mas barato"];
     const aoa = [header];
-    for(const r of state.rows){
+    for(const r of rows){
       const row = [r.product];
       for(const d of distList) row.push(r.prices[d.slug] !== undefined ? r.prices[d.slug] : "");
       row.push(r.comparable ? (distList.find(d=>d.slug===r.bestSlug)||{}).name || "" : "");
@@ -670,12 +714,15 @@
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Comparación");
-    XLSX.writeFile(wb, "comparador-precios.xlsx");
+    const term = state.searchTerm.trim();
+    XLSX.writeFile(wb, term ? "comparador-" + term.replace(/[^a-z0-9]+/gi,"-").slice(0,30) + ".xlsx" : "comparador-precios.xlsx");
   };
 
+  let searchTimer = null;
   document.getElementById("search").addEventListener("input", (e)=>{
     state.searchTerm = e.target.value;
-    renderTable();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderTable, 120);
   });
 
   // --- modo claro/oscuro ---
