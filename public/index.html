@@ -248,6 +248,9 @@
     if(!parts.length) return null;
     return parts.sort().join("|");
   }
+  // un token es "de tamaño" si es un número (200, 1.5) o una unidad (grs, ml, kg...).
+  // sirve para no premiar un match cuando dos productos solo comparten el gramaje del envase.
+  function isSizeToken(t){ return /^\d/.test(t) || new RegExp("^(?:" + UNIT_ALT + ")$").test(t); }
   const currency = new Intl.NumberFormat("es-AR", {style:"currency", currency:"ARS", maximumFractionDigits:0});
   function fmtPrice(n){ return currency.format(n); }
   function relTime(ts){
@@ -501,10 +504,11 @@
         const key = a.id<b.id ? a.id+"|"+b.id : b.id+"|"+a.id;
         if(seenPairs.has(key)) continue; seenPairs.add(key);
         if(a.size && b.size && a.size!==b.size) continue;
-        let dot=0; const setB=new Set(b.tokens);
-        for(const t of new Set(a.tokens)) if(setB.has(t)) dot += idf(t)*idf(t);
+        let dot=0, sharedNameTokens=0; const setB=new Set(b.tokens);
+        for(const t of new Set(a.tokens)){ if(setB.has(t)){ dot += idf(t)*idf(t); if(!isSizeToken(t)) sharedNameTokens++; } }
         const score = dot/(a.vecNorm*b.vecNorm);
-        const bonus = (a.size && b.size && a.size===b.size) ? 0.15 : 0;
+        // el bonus por mismo tamaño solo cuenta si ADEMÁS comparten algo del nombre (no solo el gramaje)
+        const bonus = (a.size && b.size && a.size===b.size && sharedNameTokens>0) ? 0.15 : 0;
         const total = score+bonus;
         if(total >= MATCH_THRESHOLD) edges.push({a,b,total});
       }
