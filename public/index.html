@@ -90,7 +90,8 @@
   .compare-head{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding:14px 16px; border-bottom:1px solid var(--line);}
   .compare-head .stats{font-family:"Inter", sans-serif; font-size:12px; color:var(--ink-soft); margin-top:3px;}
   .compare-controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
-  .compare-controls input[type=text]{width:180px;}
+  .compare-controls input[type=text]{width:200px;}
+  mark{background:var(--accent-soft); color:var(--accent-ink); border-radius:3px; padding:0 1px;}
 
   .table-scroll{overflow-x:auto; max-height:70vh; overflow-y:auto;}
   table.grid{border-collapse:collapse; width:100%; font-size:13.5px;}
@@ -486,7 +487,10 @@
       const rep = members.reduce((best,it)=> it.desc.length>best.desc.length ? it : best, members[0]);
       const bySlug={}; let min=Infinity, minSlug=null;
       for(const m of members){ bySlug[m.slug]=m.price; if(m.price<min){min=m.price; minSlug=m.slug;} }
-      rows.push({ product: rep.desc, prices: bySlug, bestSlug: minSlug, comparable: members.length>1 });
+      // texto de búsqueda: junta los nombres que le puso CADA distribuidor a este producto,
+      // así se lo encuentra aunque uno lo escriba distinto al nombre representativo.
+      const search = normalizeDesc(members.map(m=>m.desc).join(" "));
+      rows.push({ product: rep.desc, prices: bySlug, bestSlug: minSlug, comparable: members.length>1, search });
     }
     rows.sort((a,b)=> a.product.localeCompare(b.product,"es"));
     rows.sort((a,b)=> (b.comparable - a.comparable));
@@ -518,18 +522,39 @@
     wrap.appendChild(add);
   }
 
+  // arma un <mark> alrededor de cada palabra buscada dentro del texto ya escapado.
+  function highlightTerms(text, rawTerms){
+    let html = escapeHtml(text);
+    for(const t of rawTerms){
+      if(!t) continue;
+      const re = new RegExp("(" + t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "gi");
+      html = html.replace(re, "<mark>$1</mark>");
+    }
+    return html;
+  }
+
   function renderTable(){
     const distList = state.distributors;
-    const term = normalizeDesc(state.searchTerm);
-    const rows = term ? state.rows.filter(r => normalizeDesc(r.product).includes(term)) : state.rows;
+    // términos normalizados (sin acentos/minúsculas) para filtrar, y crudos para resaltar.
+    const terms = normalizeDesc(state.searchTerm).split(" ").filter(Boolean);
+    const rawTerms = state.searchTerm.trim().split(/\s+/).filter(Boolean);
+    const rows = terms.length
+      ? state.rows.filter(r => { const hay = r.search || normalizeDesc(r.product); return terms.every(t => hay.includes(t)); })
+      : state.rows;
 
     const statsEl = document.getElementById("compareStats");
     const comparable = state.rows.filter(r=>r.comparable).length;
-    statsEl.textContent = state.rows.length ? `${state.rows.length} productos · ${comparable} comparables entre 2+ distribuidores` : "";
+    if(!state.rows.length){
+      statsEl.textContent = "";
+    }else if(terms.length){
+      statsEl.textContent = `${rows.length} de ${state.rows.length} productos coinciden con "${state.searchTerm.trim()}"`;
+    }else{
+      statsEl.textContent = `${state.rows.length} productos · ${comparable} comparables entre 2+ distribuidores`;
+    }
 
     const tableWrap = document.getElementById("tableWrap");
     if(!distList.length){ tableWrap.innerHTML = `<div class="empty-note">Agregá al menos un distribuidor para empezar.</div>`; return; }
-    if(!rows.length){ tableWrap.innerHTML = `<div class="empty-note">${term ? "Ningún producto coincide con la búsqueda." : "Todavía no hay productos extraídos."}</div>`; return; }
+    if(!rows.length){ tableWrap.innerHTML = `<div class="empty-note">${terms.length ? "Ningún producto coincide con la búsqueda." : "Todavía no hay productos extraídos."}</div>`; return; }
 
     let html = `<table class="grid"><thead><tr><th class="prod">Producto</th>`;
     for(const d of distList) html += `<th>${escapeHtml(d.name)}</th>`;
@@ -540,7 +565,7 @@
         html += `<tr class="section-row"><td colspan="${distList.length+1}">${r.comparable ? "Comparables entre distribuidores" : "Sin comparación disponible"}</td></tr>`;
         lastComparable = r.comparable;
       }
-      html += `<tr class="${r.comparable ? "" : "single"}"><td class="prod">${escapeHtml(r.product)}</td>`;
+      html += `<tr class="${r.comparable ? "" : "single"}"><td class="prod">${highlightTerms(r.product, rawTerms)}</td>`;
       for(const d of distList){
         const price = r.prices[d.slug];
         if(price===undefined) html += `<td class="price"><span class="dash">—</span></td>`;
